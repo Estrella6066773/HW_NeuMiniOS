@@ -16,3 +16,4 @@ size_t calculate_directory_size(const char* directory_path);
 
 #endif // NEUBOOT_H
 
+
