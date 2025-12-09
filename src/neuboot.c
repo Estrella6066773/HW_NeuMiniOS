@@ -45,40 +45,9 @@ void neuboot_start(void) {
         return;
     }
     
-    // CLI 主循环（修改为集成命令执行）
-    char* input;
-    ParsedCommand* cmd;
-    ProcessManager* pm = NULL;  // 保持接口兼容，但实际不再使用
-    
-    while (cli->running) {
-        printf("> ");
-        fflush(stdout);
-        
-        input = read_input(cli);
-        if (!input) continue;
-        
-        if (strlen(input) == 0) {
-            free(input);
-            continue;
-        }
-        
-        // 添加到历史记录
-        add_to_history(cli, input);
-        
-        // 解析命令
-        cmd = parse_command(input);
-        if (cmd) {
-            // 执行命令
-            int result = execute_command(cmd, fs, pm);
-            if (result == -2) {
-                // exit 命令
-                cli->running = 0;
-            }
-            free_parsed_command(cmd);
-        }
-        
-        free(input);
-    }
+    // 淇：使用CLI主循环（集成命令执行系统）
+    ProcessManager* pm = NULL;  // 淇：保持接口兼容，但实际不再使用
+    cli_loop(cli, fs, pm);
     
     // 清理资源
     printf("\nShutting down NeuMiniOS...\n");
