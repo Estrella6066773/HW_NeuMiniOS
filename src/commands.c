@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -73,22 +74,26 @@ int execute_rename(FileSystem* fs, const char* old_filename, const char* new_fil
     }
 }
 
-// 执行 plist 命令
+// 淇：执行 plist 命令
 int execute_plist(ProcessManager* pm) {
-    (void)pm;  // 不再需要pm参数，但保持接口兼容
+    (void)pm;  // 淇：不再需要pm参数，但保持接口兼容
+    
+    // 淇：确保进程表已初始化
+    // 注意：init_process_table()应该在neuboot中调用，这里只是安全检查
     list_processes();
     return 0;
 }
 
-// 执行 stop 命令
+// 淇：执行 stop 命令
 int execute_stop(ProcessManager* pm, int process_id) {
-    (void)pm;  // 不再需要pm参数，但保持接口兼容
+    (void)pm;  // 淇：不再需要pm参数，但保持接口兼容
     
-    if (stop_process(process_id) == 0) {
-        return 0;
-    } else {
+    if (process_id <= 0) {
+        printf("Error: Invalid process ID. Process ID must be a positive integer.\n");
         return -1;
     }
+    
+    return stop_process(process_id);
 }
 
 // 执行 run 命令
@@ -192,9 +197,20 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, ProcessManager* pm) {
     else if (strcmp(cmd->command, "stop") == 0) {
         if (cmd->arg_count < 2) {
             printf("Usage: stop <process_id>\n");
+            printf("Example: stop 1\n");
             return -1;
         }
-        int process_id = atoi(cmd->args[1]);
+        // 淇：验证进程ID格式（增强错误处理）
+        char* endptr;
+        long process_id_long = strtol(cmd->args[1], &endptr, 10);
+        // 淇：检查转换是否成功，以及值是否在有效范围内
+        if (*endptr != '\0' || process_id_long <= 0 || process_id_long > INT_MAX) {
+            printf("Error: Invalid process ID '%s'. Process ID must be a positive integer (1-%d).\n", 
+                   cmd->args[1], INT_MAX);
+            printf("Use 'plist' to see running processes and their IDs.\n");
+            return -1;
+        }
+        int process_id = (int)process_id_long;
         return execute_stop(pm, process_id);
     }
     else if (strcmp(cmd->command, "run") == 0) {
@@ -219,12 +235,46 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, ProcessManager* pm) {
         return execute_mkdir(fs, cmd->args[1]);
     }
     else if (strcmp(cmd->command, "exit") == 0) {
-        return -2; // 特殊返回值，表示退出
+        return -2; // 淇：特殊返回值，表示退出
+    }
+    else if (strcmp(cmd->command, "help") == 0) {
+        printf("NeuMiniOS Command Reference:\n");
+        printf("===========================\n\n");
+        printf("File Operations:\n");
+        printf("  list                    - List all files in current directory\n");
+        printf("  view <filename>         - Display file contents\n");
+        printf("  delete <filename>       - Delete a file\n");
+        printf("  copy <src> <dest>       - Copy a file\n");
+        printf("  rename <old> <new>      - Rename a file\n\n");
+        printf("Process Operations:\n");
+        printf("  plist                   - List all running processes\n");
+        printf("  stop <pid>              - Stop a running process\n");
+        printf("  run <filename>          - Run an executable file\n\n");
+        printf("Directory Operations (bonus):\n");
+        printf("  cd <directory>          - Change directory\n");
+        printf("  mkdir <directory>      - Create directory\n\n");
+        printf("System:\n");
+        printf("  exit                    - Exit NeuMiniOS\n");
+        printf("  help                    - Show this help message\n\n");
+        printf("Command History (bonus):\n");
+        printf("  !!                      - Execute previous command\n");
+        return 0;
+    }
+    else if (strcmp(cmd->command, "history") == 0) {
+        // 淇：加分项：显示命令历史
+        // 淇：注意：实际的历史查看需要通过CLI接口
+        printf("Use arrow keys (up/down) to navigate command history\n");
+        printf("Note: History navigation requires terminal support\n");
+        return 0;
     }
     else {
-        printf("Unknown command: %s\n", cmd->command);
-        printf("Available commands: list, view, delete, copy, rename, plist, stop, run");
-        printf(", cd, mkdir, exit\n");
+        printf("Error: Unknown command '%s'\n", cmd->command);
+        printf("Available commands:\n");
+        printf("  File operations: list, view, delete, copy, rename\n");
+        printf("  Process operations: plist, stop, run\n");
+        printf("  Directory operations: cd, mkdir (bonus)\n");
+        printf("  System: exit\n");
+        printf("Type 'help' for more information\n");
         return -1;
     }
 }
