@@ -1,143 +1,183 @@
-#include "../include/process.h"
+#include "../include/process_manager.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#define _POSIX_C_SOURCE 200809L
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <signal.h>
 
-// 初始化进程管理器
-ProcessManager* init_process_manager(void) {
-    ProcessManager* pm = (ProcessManager*)malloc(sizeof(ProcessManager));
-    if (!pm) return NULL;
-    
-    pm->process_list = NULL;
-    pm->process_count = 0;
-    pm->next_process_id = 1;
-    
-    return pm;
+static Process process_table[MAX_PROCESSES];
+static int next_pid = 1;
+
+// 初始化进程表
+void init_process_table(void) {
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        process_table[i].pid = 0;
+        process_table[i].system_pid = 0;
+        process_table[i].status = 0;
+        strcpy(process_table[i].name, "");
+    }
 }
 
-// 销毁进程管理器
-void destroy_process_manager(ProcessManager* pm) {
-    if (!pm) return;
-    
-    cleanup_processes(pm);
-    free(pm);
+// 读取二进制文件到内存（用于从Disk Image中提取）
+unsigned char* read_file(const char *path, size_t *out_size) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+
+    fseek(f, 0, SEEK_END);
+    *out_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    unsigned char *buffer = malloc(*out_size);
+    if (!buffer) {
+        fclose(f);
+        return NULL;
+    }
+
+    fread(buffer, 1, *out_size, f);
+    fclose(f);
+    return buffer;
 }
 
-// 创建进程（添加到进程列表）
-int create_process(ProcessManager* pm, pid_t pid, const char* command) {
-    if (!pm || pm->process_count >= MAX_PROCESSES) {
+// 将内存中的二进制文件写入临时文件并设为可执行
+int write_file(const char *path, unsigned char *data, size_t size) {
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) return -1;
+
+    write(fd, data, size);
+    close(fd);
+
+    // 设为可执行
+    chmod(path, 0755);
+    return 0;
+}
+
+// 运行提取出的程序
+void run_program(const char *path) {
+    pid_t pid = fork();
+    if (pid == 0) {
+        // 子进程：运行程序
+        execl(path, path, (char *)NULL);
+        perror("execl failed");
+        _exit(1);
+    } else if (pid > 0) {
+        // 父进程：记录PID
+        printf("[INFO] Process started with system PID: %d\n", pid);
+    } else {
+        perror("fork failed");
+    }
+}
+
+// 创建新进程（run命令）
+int create_process(const char *program_name, const char *program_path) {
+    // 1. 查找空闲槽位
+    int slot = -1;
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        if (process_table[i].status == 0) {
+            slot = i;
+            break;
+        }
+    }
+
+    if (slot == -1) {
+        printf("[ERROR] Process table full (max %d processes)\n", MAX_PROCESSES);
         return -1;
     }
-    
-    ProcessNode* new_process = (ProcessNode*)malloc(sizeof(ProcessNode));
-    if (!new_process) return -1;
-    
-    new_process->pid = pid;
-    new_process->process_id = pm->next_process_id++;
-    new_process->command = strdup(command);
-    new_process->status = 0; // 运行中
-    new_process->next = NULL;
-    
-    // 添加到链表
-    if (pm->process_list == NULL) {
-        pm->process_list = new_process;
-    } else {
-        ProcessNode* current = pm->process_list;
-        while (current->next != NULL) {
-            current = current->next;
-        }
-        current->next = new_process;
+
+    // 2. 读取二进制文件
+    size_t size;
+    unsigned char *data = read_file(program_path, &size);
+    if (!data) {
+        printf("[ERROR] Could not read program: %s\n", program_path);
+        return -1;
     }
-    
-    pm->process_count++;
-    return new_process->process_id;
+
+    // 3. 写入临时文件
+    char temp_path[] = "/tmp/neumini_XXXXXX";
+    int fd = mkstemp(temp_path);
+    if (fd == -1) {
+        free(data);
+        return -1;
+    }
+    close(fd);
+
+    if (write_file(temp_path, data, size) != 0) {
+        free(data);
+        return -1;
+    }
+
+    free(data);
+
+    // 4. 使用fork和execl运行
+    pid_t system_pid = fork();
+    if (system_pid == 0) {
+        // 子进程
+        execl(temp_path, program_name, (char *)NULL);
+        perror("[ERROR] execl failed");
+        _exit(1);
+    } else if (system_pid > 0) {
+        // 父进程：记录进程信息
+        process_table[slot].pid = next_pid++;
+        process_table[slot].system_pid = system_pid;
+        strcpy(process_table[slot].name, program_name);
+        process_table[slot].status = 1;
+
+        printf("[OK] Process %d started (NeuMiniOS PID: %d, System PID: %d)\n",
+               process_table[slot].pid, process_table[slot].pid, system_pid);
+
+        return process_table[slot].pid;
+    } else {
+        perror("[ERROR] fork failed");
+        return -1;
+    }
 }
 
-// 停止进程
-int stop_process(ProcessManager* pm, int process_id) {
-    if (!pm) return -1;
-    
-    ProcessNode* process = find_process(pm, process_id);
-    if (!process || process->status != 0) {
-        return -1; // 进程未找到或已停止
+// 停止进程（stop命令）
+int stop_process(int pid) {
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        if (process_table[i].pid == pid && process_table[i].status == 1) {
+            if (kill(process_table[i].system_pid, SIGTERM) == 0) {
+                waitpid(process_table[i].system_pid, NULL, 0);
+                process_table[i].status = 0;
+                printf("[OK] Process %d stopped\n", pid);
+                return 0;
+            } else {
+                perror("[ERROR] kill failed");
+                return -1;
+            }
+        }
     }
-    
-    // 发送 SIGTERM 信号
-    if (kill(process->pid, SIGTERM) == 0) {
-        process->status = 1; // 标记为已停止
-        waitpid(process->pid, NULL, 0); // 等待进程结束
-        pm->process_count--;
-        return 0;
-    }
-    
+
+    printf("[ERROR] Process %d not found\n", pid);
     return -1;
 }
 
-// 列出所有进程
-void list_processes(ProcessManager* pm) {
-    if (!pm) return;
-    
-    printf("Running processes:\n");
-    if (pm->process_count == 0) {
-        printf("  (no processes)\n");
-        return;
-    }
-    
-    ProcessNode* current = pm->process_list;
-    while (current != NULL) {
-        if (current->status == 0) { // 只显示运行中的进程
-            printf("  [%d] PID: %d, Command: %s, Status: Running\n", 
-                   current->process_id, current->pid, current->command);
-        }
-        current = current->next;
-    }
-}
-
-// 查找进程
-ProcessNode* find_process(ProcessManager* pm, int process_id) {
-    if (!pm) return NULL;
-    
-    ProcessNode* current = pm->process_list;
-    while (current != NULL) {
-        if (current->process_id == process_id) {
-            return current;
-        }
-        current = current->next;
-    }
-    
-    return NULL;
-}
-
-// 清理已停止的进程
-void cleanup_processes(ProcessManager* pm) {
-    if (!pm) return;
-    
-    ProcessNode* current = pm->process_list;
-    ProcessNode* prev = NULL;
-    
-    while (current != NULL) {
-        // 检查进程是否还在运行
-        if (kill(current->pid, 0) != 0) {
-            // 进程已结束，从链表中移除
-            ProcessNode* to_remove = current;
-            if (prev == NULL) {
-                pm->process_list = current->next;
-            } else {
-                prev->next = current->next;
-            }
-            current = current->next;
-            
-            free(to_remove->command);
-            free(to_remove);
-            pm->process_count--;
-        } else {
-            prev = current;
-            current = current->next;
+// 列出所有进程（plist命令）
+void list_processes(void) {
+    printf("=== Running Processes (max %d) ===\n", MAX_PROCESSES);
+    printf("%-10s %-10s %-20s %s\n", "PID", "System PID", "Name", "Status");
+    printf("------------------------------------------------\n");
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        if (process_table[i].status == 1) {
+            printf("%-10d %-10d %-20s %s\n",
+                   process_table[i].pid,
+                   (int)process_table[i].system_pid,
+                   process_table[i].name,
+                   "Running");
         }
     }
 }
 
+// 清理进程表（退出时调用）
+void cleanup_process_table(void) {
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        if (process_table[i].status == 1) {
+            kill(process_table[i].system_pid, SIGKILL);
+            waitpid(process_table[i].system_pid, NULL, 0);
+        }
+    }
+    printf("[INFO] All processes cleaned up\n");
+}

@@ -1,4 +1,5 @@
 #include "../include/commands.h"
+#include "../include/process_manager.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -74,30 +75,27 @@ int execute_rename(FileSystem* fs, const char* old_filename, const char* new_fil
 
 // 执行 plist 命令
 int execute_plist(ProcessManager* pm) {
-    if (!pm) return -1;
-    list_processes(pm);
+    (void)pm;  // 不再需要pm参数，但保持接口兼容
+    list_processes();
     return 0;
 }
 
 // 执行 stop 命令
 int execute_stop(ProcessManager* pm, int process_id) {
-    if (!pm) {
-        printf("Usage: stop <process_id>\n");
-        return -1;
-    }
+    (void)pm;  // 不再需要pm参数，但保持接口兼容
     
-    if (stop_process(pm, process_id) == 0) {
-        printf("Process %d stopped successfully\n", process_id);
+    if (stop_process(process_id) == 0) {
         return 0;
     } else {
-        printf("Error: Failed to stop process %d\n", process_id);
         return -1;
     }
 }
 
 // 执行 run 命令
 int execute_run(FileSystem* fs, ProcessManager* pm, const char* filename) {
-    if (!fs || !pm || !filename) {
+    (void)pm;  // 不再需要pm参数，但保持接口兼容
+    
+    if (!fs || !filename) {
         printf("Usage: run <filename>\n");
         return -1;
     }
@@ -111,33 +109,11 @@ int execute_run(FileSystem* fs, ProcessManager* pm, const char* filename) {
         return -1;
     }
     
-    // 创建子进程执行文件
-    pid_t pid = fork();
-    if (pid == 0) {
-        // 子进程：执行文件
-        char* args[] = {temp_path, NULL};
-        execv(temp_path, args);
-        
-        // 如果 execv 失败
-        printf("Error: Failed to execute '%s'\n", filename);
-        exit(1);
-    } else if (pid > 0) {
-        // 父进程：记录进程信息
-        int process_id = create_process(pm, pid, filename);
-        if (process_id > 0) {
-            printf("Process %d started (PID: %d) for '%s'\n", process_id, pid, filename);
-            
-            // 非阻塞等待，让进程在后台运行
-            // 如果需要等待进程结束，可以使用 waitpid
-            return 0;
-        } else {
-            printf("Error: Failed to create process (limit reached)\n");
-            kill(pid, SIGTERM);
-            waitpid(pid, NULL, 0);
-            return -1;
-        }
+    // 使用新的create_process函数，它会处理文件读取、临时文件创建和进程启动
+    int process_id = create_process(filename, temp_path);
+    if (process_id > 0) {
+        return 0;
     } else {
-        printf("Error: Failed to fork process\n");
         return -1;
     }
 }

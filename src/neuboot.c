@@ -1,6 +1,7 @@
 #include "../include/neuboot.h"
 #include "../include/commands.h"
 #include "../include/cli.h"
+#include "../include/process_manager.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,13 +22,8 @@ void neuboot_start(void) {
         return;
     }
     
-    // 初始化进程管理器
-    ProcessManager* pm = init_process_manager();
-    if (!pm) {
-        printf("Error: Failed to initialize process manager\n");
-        destroy_file_system(fs);
-        return;
-    }
+    // 初始化进程表
+    init_process_table();
     
     // 从目录加载文件
     printf("Loading files from directory: %s\n", DEFAULT_FILES_DIR);
@@ -44,7 +40,7 @@ void neuboot_start(void) {
     CLI* cli = init_cli();
     if (!cli) {
         printf("Error: Failed to initialize CLI\n");
-        destroy_process_manager(pm);
+        cleanup_process_table();
         destroy_file_system(fs);
         return;
     }
@@ -52,6 +48,7 @@ void neuboot_start(void) {
     // CLI 主循环（修改为集成命令执行）
     char* input;
     ParsedCommand* cmd;
+    ProcessManager* pm = NULL;  // 保持接口兼容，但实际不再使用
     
     while (cli->running) {
         printf("> ");
@@ -86,7 +83,7 @@ void neuboot_start(void) {
     // 清理资源
     printf("\nShutting down NeuMiniOS...\n");
     destroy_cli(cli);
-    destroy_process_manager(pm);
+    cleanup_process_table();
     destroy_file_system(fs);
     printf("Goodbye!\n");
 }
