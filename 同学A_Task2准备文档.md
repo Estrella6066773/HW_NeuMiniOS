@@ -707,8 +707,3 @@ typedef struct {
     int arg_count;
 } ParsedCommand;
 ```
-
----
-
-**最后更新 / Last Updated:** 2025/12/10  
-**状态 / Status:** ✅ 准备就绪 / Ready for Review
