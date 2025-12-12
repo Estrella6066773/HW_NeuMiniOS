@@ -16,7 +16,7 @@ typedef struct FileNode {
 } FileNode;
 
 // 文件系统结构
-typedef struct {
+typedef struct FileSystem {
     FileNode* root;           // 根节点
     FileNode* current_dir;    // 当前目录
     size_t total_size;        // 磁盘镜像总大小
