@@ -306,4 +306,3 @@ char* get_history_command(CLI* cli, int direction) {
     
     return NULL;
 }
-

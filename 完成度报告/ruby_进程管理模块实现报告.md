@@ -267,11 +267,21 @@ int stop_process(int pid) {
 - `create_process()` 创建临时文件后未记录路径
 - 进程结束后临时文件未被删除
 - 可能导致 `/tmp` 目录积累临时文件
+- **注意**: `execute_run()` 在 `commands.c:110` 中创建的临时文件路径为 `/tmp/neuminios_<filename>_<pid>`，这个文件在 `create_process()` 内部会再次创建新的临时文件，导致原文件未被清理
 
-**代码位置**: `src/process.c:99-112`
+**代码位置**: 
+- `src/process.c:99-112` (create_process 中的临时文件)
+- `src/commands.c:110` (execute_run 中的临时文件)
 
 **当前实现**:
 ```c
+// commands.c 中
+char temp_path[256];
+snprintf(temp_path, sizeof(temp_path), "/tmp/neuminios_%s_%d", filename, getpid());
+extract_file_to_host(fs, filename, temp_path);
+create_process(filename, temp_path);  // 内部会创建新的临时文件
+
+// process.c 中
 char temp_path[] = "/tmp/neumini_XXXXXX";
 int fd = mkstemp(temp_path);
 // ... 使用临时文件
@@ -282,6 +292,7 @@ int fd = mkstemp(temp_path);
 1. 在 `Process` 结构体中添加 `temp_file_path` 字段
 2. 保存临时文件路径
 3. 在 `stop_process()` 或 `cleanup_process_table()` 中删除临时文件
+4. 在 `execute_run()` 中清理提取的临时文件
 
 **改进代码**:
 ```c
@@ -303,14 +314,31 @@ int stop_process(int pid) {
 }
 ```
 
-### 2. 进程状态检查不完整（低优先级）
+### 2. 进程状态检查已改进 ✅
 
-**问题描述**:
-- `list_processes()` 只检查 `status == 1` 的进程
-- 未检查进程是否真的还在运行
-- 如果进程异常退出，状态可能不准确
+**状态**: ✅ **已改进**
 
-**建议**: 可以使用 `waitpid(pid, NULL, WNOHANG)` 检查进程是否还在运行
+**代码位置**: `src/process.c:138-174` (stop_process 函数)
+
+**说明**: 
+- `stop_process()` 函数中已实现进程存在性检查
+- 使用 `kill(process_table[i].system_pid, 0)` 检查进程是否仍然存在
+- 如果进程已不存在，会自动更新状态并提示用户
+- 这改进了进程状态管理的准确性
+
+**实现代码**:
+```c
+// 检查进程是否仍然存在
+if (kill(process_table[i].system_pid, 0) != 0) {
+    // 进程已经不存在，更新状态
+    process_table[i].status = 0;
+    printf("Warning: Process %d (system PID %d) is no longer running\n", 
+           pid, (int)process_table[i].system_pid);
+    return 0;
+}
+```
+
+**建议**: `list_processes()` 也可以添加类似的检查，定期清理已退出的进程
 
 ### 3. 错误处理可以更详细（低优先级）
 
@@ -498,10 +526,11 @@ int stop_process(int pid) {
 - ✅ 与系统其他模块集成良好
 - ✅ 错误处理基本完善
 - ✅ 使用标准的 Unix 系统调用（fork, execl, kill, waitpid）
+- ✅ 进程状态检查已改进（stop_process 中检查进程存在性）
 
 ### 需要改进
 - ⚠️ 临时文件清理未实现（可能导致资源泄漏）
-- ⚠️ 进程状态检查可以更完善
+- ⚠️ `list_processes()` 可以添加进程存在性检查
 - ⚠️ 加分项（链表结构）未实现
 
 ### 建议
@@ -538,4 +567,3 @@ int stop_process(int pid) {
 **报告生成时间**: 2024年  
 **检查人**: AI Assistant  
 **状态**: ✅ 基本要求完成，加分项未实现
-

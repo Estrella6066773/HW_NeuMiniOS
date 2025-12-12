@@ -15,6 +15,3 @@ void display_boot_info(FileSystem* fs);  // 加分项：显示启动信息
 size_t calculate_directory_size(const char* directory_path);
 
 #endif // NEUBOOT_H
-
-
-

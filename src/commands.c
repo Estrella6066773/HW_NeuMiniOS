@@ -278,4 +278,3 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, ProcessManager* pm) {
         return -1;
     }
 }
-

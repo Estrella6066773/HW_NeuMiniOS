@@ -8,4 +8,3 @@ int main(int argc, char* argv[]) {
     neuboot_start();
     return 0;
 }
-

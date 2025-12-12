@@ -270,4 +270,3 @@ void print_file_info(FileNode* file) {
     printf("File: %s, Size: %zu bytes, Path: %s\n", 
            file->filename, file->size, file->path);
 }
-
