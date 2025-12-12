@@ -41,6 +41,3 @@ void add_to_history(CLI* cli, const char* command);
 char* get_history_command(CLI* cli, int direction); // direction: -1=上一条, 1=下一条
 
 #endif // CLI_H
-
-
-

@@ -33,6 +33,3 @@ ProcessNode* find_process(ProcessManager* pm, int process_id);
 void cleanup_processes(ProcessManager* pm);
 
 #endif // PROCESS_H
-
-
-
