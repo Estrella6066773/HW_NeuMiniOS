@@ -135,31 +135,52 @@ int create_process(const char *program_name, const char *program_path) {
     }
 }
 
-// 停止进程（stop命令）
+// 淇：停止进程（stop命令）
 int stop_process(int pid) {
+    if (pid <= 0) {
+        printf("Error: Invalid process ID: %d\n", pid);
+        return -1;
+    }
+    
     for (int i = 0; i < MAX_PROCESSES; i++) {
         if (process_table[i].pid == pid && process_table[i].status == 1) {
-            if (kill(process_table[i].system_pid, SIGTERM) == 0) {
-                waitpid(process_table[i].system_pid, NULL, 0);
+            // 淇：检查进程是否仍然存在
+            if (kill(process_table[i].system_pid, 0) != 0) {
+                // 淇：进程已经不存在，更新状态
                 process_table[i].status = 0;
-                printf("[OK] Process %d stopped\n", pid);
+                printf("Warning: Process %d (system PID %d) is no longer running\n", 
+                       pid, (int)process_table[i].system_pid);
+                return 0;
+            }
+            
+            // 淇：发送终止信号
+            if (kill(process_table[i].system_pid, SIGTERM) == 0) {
+                // 淇：等待进程结束
+                int status;
+                waitpid(process_table[i].system_pid, &status, 0);
+                process_table[i].status = 0;
+                printf("Process %d (%s) stopped successfully\n", pid, process_table[i].name);
                 return 0;
             } else {
-                perror("[ERROR] kill failed");
+                perror("Error: Failed to stop process");
                 return -1;
             }
         }
     }
-
-    printf("[ERROR] Process %d not found\n", pid);
+    
+    printf("Error: Process %d not found or not running\n", pid);
+    printf("Use 'plist' to see running processes\n");
     return -1;
 }
 
-// 列出所有进程（plist命令）
+// 淇：列出所有进程（plist命令）
 void list_processes(void) {
+    int running_count = 0;
+    
     printf("=== Running Processes (max %d) ===\n", MAX_PROCESSES);
     printf("%-10s %-10s %-20s %s\n", "PID", "System PID", "Name", "Status");
     printf("------------------------------------------------\n");
+    
     for (int i = 0; i < MAX_PROCESSES; i++) {
         if (process_table[i].status == 1) {
             printf("%-10d %-10d %-20s %s\n",
@@ -167,7 +188,14 @@ void list_processes(void) {
                    (int)process_table[i].system_pid,
                    process_table[i].name,
                    "Running");
+            running_count++;
         }
+    }
+    
+    if (running_count == 0) {
+        printf("(no running processes)\n");
+    } else {
+        printf("Total: %d process(es) running\n", running_count);
     }
 }
 
