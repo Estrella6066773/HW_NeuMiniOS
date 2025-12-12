@@ -38,3 +38,4 @@ char* get_history_command(CLI* cli, int direction); // direction: -1=上一条, 
 #endif // CLI_H
 
 
+
