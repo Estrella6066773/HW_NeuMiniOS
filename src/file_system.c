@@ -115,38 +115,6 @@ FileNode* find_file(FileSystem* fs, const char* filename) {
     return NULL;
 }
 
-// 删除文件
-// cmd: delete <filename>
-int delete_file(FileSystem* fs, const char* filename) {
-    if (!fs || !filename) return -1;
-    
-    FileNode* prev = NULL;
-    FileNode* current = fs->current_dir->children;
-    
-    while (current != NULL) {
-        if (strcmp(current->filename, filename) == 0 && !current->is_directory) {
-            // 从链表中移除
-            if (prev == NULL) {
-                fs->current_dir->children = current->next;
-            } else {
-                prev->next = current->next;
-            }
-            
-            // 释放内存
-            fs->total_size -= current->size;
-            free(current->filename);
-            free(current->path);
-            free(current->data);
-            free(current);
-            
-            return 0;
-        }
-        prev = current;
-        current = current->next;
-    }
-    
-    return -1; // 文件未找到
-}
 
 // 复制文件
 // copy <filename>
@@ -192,6 +160,7 @@ void list_files(FileSystem* fs) {
 }
 
 // 查看文件内容
+// view <filenmame>
 int view_file(FileSystem* fs, const char* filename) {
     FileNode* file = find_file(fs, filename);
     if (!file) {
@@ -209,26 +178,41 @@ int view_file(FileSystem* fs, const char* filename) {
     return 0;
 }
 
-// 提取文件到主机系统
-int extract_file_to_host(FileSystem* fs, const char* filename, const char* host_path) {
-    FileNode* file = find_file(fs, filename);
-    if (!file || file->is_directory) return -1;
-    
-    FILE* fp = fopen(host_path, "wb");
-    if (!fp) return -1;
-    
-    size_t written = fwrite(file->data, 1, file->size, fp);
-    fclose(fp);
-    
-    if (written != file->size) return -1;
-    
-    // 设置可执行权限
-    chmod(host_path, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-    
-    return 0;
+// 删除文件
+// cmd: delete <filename>
+int delete_file(FileSystem* fs, const char* filename) {
+    if (!fs || !filename) return -1;
+
+    FileNode* prev = NULL;
+    FileNode* current = fs->current_dir->children;
+
+    while (current != NULL) {
+        if (strcmp(current->filename, filename) == 0 && !current->is_directory) {
+            // 从链表中移除
+            if (prev == NULL) {
+                fs->current_dir->children = current->next;
+            } else {
+                prev->next = current->next;
+            }
+
+            // 释放内存
+            fs->total_size -= current->size;
+            free(current->filename);
+            free(current->path);
+            free(current->data);
+            free(current);
+
+            return 0;
+        }
+        prev = current;
+        current = current->next;
+    }
+
+    return -1; // 文件未找到
 }
 
-// 创建目录（加分项）
+// 创建目录
+// mkdir <directory>
 FileNode* create_directory(FileSystem* fs, const char* dirname) {
     if (!fs || !dirname) return NULL;
     
@@ -260,7 +244,8 @@ FileNode* create_directory(FileSystem* fs, const char* dirname) {
     return new_dir;
 }
 
-// 切换目录（加分项）
+// 切换目录
+// cd <directory>
 int change_directory(FileSystem* fs, const char* dirname) {
     if (!fs || !dirname) return -1;
     
@@ -287,8 +272,28 @@ int change_directory(FileSystem* fs, const char* dirname) {
 }
 
 // 打印文件信息
+
 void print_file_info(FileNode* file) {
     if (!file) return;
     printf("File: %s, Size: %zu bytes, Path: %s\n", 
            file->filename, file->size, file->path);
+}
+
+// 提取文件到主机系统，用于在进程管理运行程序
+int extract_file_to_host(FileSystem* fs, const char* filename, const char* host_path) {
+    FileNode* file = find_file(fs, filename);
+    if (!file || file->is_directory) return -1;
+
+    FILE* fp = fopen(host_path, "wb");
+    if (!fp) return -1;
+
+    size_t written = fwrite(file->data, 1, file->size, fp);
+    fclose(fp);
+
+    if (written != file->size) return -1;
+
+    // 设置可执行权限
+    chmod(host_path, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+
+    return 0;
 }
