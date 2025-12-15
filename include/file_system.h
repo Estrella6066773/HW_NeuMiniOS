@@ -23,19 +23,19 @@ typedef struct FileSystem {
     size_t total_size;        // 磁盘镜像总大小
 } FileSystem;
 
-// 函数声明
+// 函数声明（顺序与 src/file_system.c 中实现保持一致）
 FileSystem* init_file_system(void);
 void destroy_file_system(FileSystem* fs);
 FileNode* add_file(FileSystem* fs, const char* filename, const char* path, void* data, size_t size);
 FileNode* find_file(FileSystem* fs, const char* filename);
-int delete_file(FileSystem* fs, const char* filename);
 FileNode* copy_file(FileSystem* fs, const char* src_filename, const char* dest_filename);
 int rename_file(FileSystem* fs, const char* old_filename, const char* new_filename);
 void list_files(FileSystem* fs);
 int view_file(FileSystem* fs, const char* filename);
-int extract_file_to_host(FileSystem* fs, const char* filename, const char* host_path);
+int delete_file(FileSystem* fs, const char* filename);
 FileNode* create_directory(FileSystem* fs, const char* dirname);
 int change_directory(FileSystem* fs, const char* dirname);
 void print_file_info(FileNode* file);
+int extract_file_to_host(FileSystem* fs, const char* filename, const char* host_path);
 
 #endif // FILE_SYSTEM_H

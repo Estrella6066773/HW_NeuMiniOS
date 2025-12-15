@@ -44,7 +44,21 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, ProcessManager* pm) {
         return execute_run(fs, pm, cmd->args[1]);
     }
 
-    // 文件系统 / 目录相关指令
+    // 文件系统 / 目录相关指令（顺序与 execute_* / file_system 保持一致）
+    else if (strcmp(cmd->command, "copy") == 0) {
+        if (cmd->arg_count < 3) {
+            printf("Usage: copy <src_filename> <dest_filename>\n");
+            return -1;
+        }
+        return execute_copy(fs, cmd->args[1], cmd->args[2]);
+    }
+    else if (strcmp(cmd->command, "rename") == 0) {
+        if (cmd->arg_count < 3) {
+            printf("Usage: rename <old_filename> <new_filename>\n");
+            return -1;
+        }
+        return execute_rename(fs, cmd->args[1], cmd->args[2]);
+    }
     else if (strcmp(cmd->command, "list") == 0) {
         return execute_list(fs);
     }
@@ -62,19 +76,12 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, ProcessManager* pm) {
         }
         return execute_delete(fs, cmd->args[1]);
     }
-    else if (strcmp(cmd->command, "copy") == 0) {
-        if (cmd->arg_count < 3) {
-            printf("Usage: copy <src_filename> <dest_filename>\n");
+    else if (strcmp(cmd->command, "mkdir") == 0) {
+        if (cmd->arg_count < 2) {
+            printf("Usage: mkdir <directory>\n");
             return -1;
         }
-        return execute_copy(fs, cmd->args[1], cmd->args[2]);
-    }
-    else if (strcmp(cmd->command, "rename") == 0) {
-        if (cmd->arg_count < 3) {
-            printf("Usage: rename <old_filename> <new_filename>\n");
-            return -1;
-        }
-        return execute_rename(fs, cmd->args[1], cmd->args[2]);
+        return execute_mkdir(fs, cmd->args[1]);
     }
     else if (strcmp(cmd->command, "cd") == 0) {
         if (cmd->arg_count < 2) {
@@ -82,13 +89,6 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, ProcessManager* pm) {
             return -1;
         }
         return execute_cd(fs, cmd->args[1]);
-    }
-    else if (strcmp(cmd->command, "mkdir") == 0) {
-        if (cmd->arg_count < 2) {
-            printf("Usage: mkdir <directory>\n");
-            return -1;
-        }
-        return execute_mkdir(fs, cmd->args[1]);
     }
     // 系统控制和帮助类指令
     else if (strcmp(cmd->command, "exit") == 0) {
