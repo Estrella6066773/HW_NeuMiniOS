@@ -95,6 +95,22 @@ void cli_loop(CLI* cli, FileSystem* fs, ProcessManager* pm) {
     }
 }
 
+// 重绘当前输入行并将光标移到正确位置
+static void redraw_line(const char* buffer, int len, int cursor_pos, int* last_print_len) {
+    printf("\r> %s", buffer);
+    if (*last_print_len > len) {
+        for (int i = 0; i < *last_print_len - len; i++) putchar(' ');
+        printf("\r> %s", buffer);
+    }
+    *last_print_len = len;
+    printf("\r> ");
+    for (int i = 0; i < cursor_pos; i++) {
+        if (buffer[i] == '\0') break;
+        putchar(buffer[i]);
+    }
+    fflush(stdout);
+}
+
 // 淇：读取用户输入（支持基本的历史记录功能）
 char* read_input(CLI* cli) {
     if (!cli) return NULL;
@@ -117,25 +133,8 @@ char* read_input(CLI* cli) {
     
     char buffer[MAX_INPUT_LENGTH] = {0};
     int len = 0;
-    int cursor_pos = 0; // 光标在缓冲区中的位置
-    int old_len = 0; // 用于重绘时清理残余字符
-    
-    // 辅助函数：重绘当前行并移动光标到正确位置
-    void redraw_line(void) {
-        // 清除当前行并重绘
-        printf("\r> %s", buffer);
-        // 移动光标到正确位置：提示符 "> " 占2个字符，加上cursor_pos
-        int target_col = 2 + cursor_pos;
-        int current_col = 2 + len;
-        if (target_col < current_col) {
-            // 光标在中间，需要向左移动
-            printf("\033[%dD", current_col - target_col);
-        } else if (target_col > current_col) {
-            // 光标在末尾之后（理论上不应该发生）
-            printf("\033[%dC", target_col - current_col);
-        }
-        fflush(stdout);
-    }
+    int cursor_pos = 0;     // 光标相对于缓冲区的位置
+    int last_print_len = 0; // 记录上次打印的长度，用于清理尾部
     
     while (1) {
         unsigned char ch;
@@ -168,16 +167,13 @@ char* read_input(CLI* cli) {
             
             char* result = strdup(buffer);
             return result;
-        } else if (ch == 0x7f || ch == 0x08) { // 退格 (Backspace)
+        } else if (ch == 0x7f) { // 退格
             if (cursor_pos > 0) {
-                // 将光标后的字符前移
-                for (int i = cursor_pos - 1; i < len; i++) {
-                    buffer[i] = buffer[i + 1];
-                }
-                len--;
+                // 删除光标前一个字符
+                memmove(&buffer[cursor_pos - 1], &buffer[cursor_pos], len - cursor_pos + 1);
                 cursor_pos--;
-                buffer[len] = '\0';
-                redraw_line();
+                len--;
+                redraw_line(buffer, len, cursor_pos, &last_print_len);
             }
             continue;
         } else if (ch == 0x1b) { // 可能是方向键序列
@@ -190,45 +186,47 @@ char* read_input(CLI* cli) {
                     // 上箭头：上一条历史
                     char* hist = get_history_command(cli, -1);
                     if (hist) {
-                        old_len = len;
                         len = (int)snprintf(buffer, sizeof(buffer), "%s", hist);
-                        cursor_pos = len; // 光标移到末尾
-                        redraw_line();
+                        cursor_pos = len;
+                        redraw_line(buffer, len, cursor_pos, &last_print_len);
                     }
                 } else if (seq[1] == 'B') {
                     // 下箭头：下一条历史
                     char* hist = get_history_command(cli, 1);
                     if (hist) {
-                        old_len = len;
                         len = (int)snprintf(buffer, sizeof(buffer), "%s", hist);
-                        cursor_pos = len; // 光标移到末尾
-                        redraw_line();
+                        cursor_pos = len;
+                        redraw_line(buffer, len, cursor_pos, &last_print_len);
                     } else {
                         // 如果没有下一条，清空输入
                         if (len > 0) {
-                            old_len = len;
                             len = 0;
                             cursor_pos = 0;
                             buffer[0] = '\0';
-                            printf("\r> ");
-                            for (int i = 0; i < old_len; i++) putchar(' ');
-                            printf("\r> ");
-                            fflush(stdout);
+                            redraw_line(buffer, len, cursor_pos, &last_print_len);
                         }
                     }
                 } else if (seq[1] == 'C') {
-                    // 右箭头：光标右移
+                    // 右箭头
                     if (cursor_pos < len) {
                         cursor_pos++;
-                        printf("\033[C"); // ANSI: 光标右移
-                        fflush(stdout);
+                        redraw_line(buffer, len, cursor_pos, &last_print_len);
                     }
                 } else if (seq[1] == 'D') {
-                    // 左箭头：光标左移
+                    // 左箭头
                     if (cursor_pos > 0) {
                         cursor_pos--;
-                        printf("\033[D"); // ANSI: 光标左移
-                        fflush(stdout);
+                        redraw_line(buffer, len, cursor_pos, &last_print_len);
+                    }
+                } else if (seq[1] == '3') {
+                    // 处理 Delete 键序列 ESC [ 3 ~
+                    unsigned char seq2;
+                    if (read(STDIN_FILENO, &seq2, 1) > 0 && seq2 == '~') {
+                        if (cursor_pos < len) {
+                            memmove(&buffer[cursor_pos], &buffer[cursor_pos + 1], len - cursor_pos);
+                            len--;
+                            redraw_line(buffer, len, cursor_pos, &last_print_len);
+                        }
                     }
                 }
             }
@@ -237,20 +235,16 @@ char* read_input(CLI* cli) {
             tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
             return NULL;
         } else {
-            // 普通字符：在光标位置插入
+            // 普通字符
             if (len < MAX_INPUT_LENGTH - 1) {
-                // 如果光标不在末尾，需要移动后面的字符
+                // 在光标处插入字符
                 if (cursor_pos < len) {
-                    for (int i = len; i > cursor_pos; i--) {
-                        buffer[i] = buffer[i - 1];
-                    }
+                    memmove(&buffer[cursor_pos + 1], &buffer[cursor_pos], len - cursor_pos + 1);
                 }
                 buffer[cursor_pos] = (char)ch;
                 len++;
                 cursor_pos++;
-                buffer[len] = '\0';
-                // 重绘整行以确保正确显示
-                redraw_line();
+                redraw_line(buffer, len, cursor_pos, &last_print_len);
             } else {
                 // 达到长度上限，忽略超出部分
                 continue;
