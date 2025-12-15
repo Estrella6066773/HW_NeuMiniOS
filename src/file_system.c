@@ -34,12 +34,27 @@ FileSystem* init_file_system(void) {
     return fs;
 }
 
+// 递归释放文件节点及其子节点
+static void free_file_node(FileNode* node) {
+    if (!node) return;
+
+    // 先释放子节点，再处理兄弟节点，避免悬挂指针
+    free_file_node(node->children);
+    free_file_node(node->next);
+
+    free(node->filename);
+    free(node->path);
+    if (!node->is_directory && node->data) {
+        free(node->data);
+    }
+    free(node);
+}
+
 // 销毁文件系统
 void destroy_file_system(FileSystem* fs) {
     if (!fs) return;
     
-    // TODO: 递归释放所有文件节点
-    // 这里需要实现递归释放逻辑
+    free_file_node(fs->root);
     
     free(fs);
 }
