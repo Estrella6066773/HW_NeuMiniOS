@@ -22,6 +22,7 @@ void neuboot_start(void) {
         return;
     }
     
+    // ruby: 引导阶段初始化进程表，确保 CLI 运行前没有残留进程
     // 初始化进程表
     init_process_table();
     
