@@ -95,7 +95,7 @@ int load_files_from_directory(FileSystem* fs, const char* directory_path) {
                 void* file_data = malloc(file_stat.st_size);
                 if (file_data) {
                     size_t bytes_read = fread(file_data, 1, file_stat.st_size, fp);
-                    if (bytes_read == file_stat.st_size) {
+                    if (bytes_read == (size_t)file_stat.st_size) {
                         // 添加到文件系统
                         FileNode* file = add_file(fs, entry->d_name, "/", file_data, file_stat.st_size);
                         if (file) {

@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <termios.h>
+#include <unistd.h>
 #define _POSIX_C_SOURCE 200809L
 
 // 淇：初始化 CLI
@@ -58,9 +60,6 @@ void cli_loop(CLI* cli, FileSystem* fs, ProcessManager* pm) {
     ParsedCommand* cmd;
     
     while (cli->running) {
-        printf("> ");
-        fflush(stdout);
-        
         input = read_input(cli);
         if (!input) continue;
         
@@ -100,54 +99,164 @@ void cli_loop(CLI* cli, FileSystem* fs, ProcessManager* pm) {
 char* read_input(CLI* cli) {
     if (!cli) return NULL;
     
-    char* buffer = (char*)malloc(MAX_INPUT_LENGTH);
-    if (!buffer) {
-        // 淇：内存分配失败，返回NULL但不崩溃
+    // 显示提示符（仅用于用户输入行）
+    printf("> ");
+    fflush(stdout);
+    
+    struct termios oldt, newt;
+    if (tcgetattr(STDIN_FILENO, &oldt) == -1) {
+        return NULL;
+    }
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO); // 关闭规范模式和回显
+    newt.c_cc[VMIN] = 1;
+    newt.c_cc[VTIME] = 0;
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) == -1) {
         return NULL;
     }
     
-    // 淇：使用fgets读取输入（简单版本，方向键导航需要更复杂的终端控制）
-    if (fgets(buffer, MAX_INPUT_LENGTH, stdin) == NULL) {
-        // 淇：EOF或读取错误
-        free(buffer);
-        return NULL;
+    char buffer[MAX_INPUT_LENGTH] = {0};
+    int len = 0;
+    int cursor_pos = 0; // 光标在缓冲区中的位置
+    int old_len = 0; // 用于重绘时清理残余字符
+    
+    // 辅助函数：重绘当前行并移动光标到正确位置
+    void redraw_line(void) {
+        // 清除当前行并重绘
+        printf("\r> %s", buffer);
+        // 移动光标到正确位置：提示符 "> " 占2个字符，加上cursor_pos
+        int target_col = 2 + cursor_pos;
+        int current_col = 2 + len;
+        if (target_col < current_col) {
+            // 光标在中间，需要向左移动
+            printf("\033[%dD", current_col - target_col);
+        } else if (target_col > current_col) {
+            // 光标在末尾之后（理论上不应该发生）
+            printf("\033[%dC", target_col - current_col);
+        }
+        fflush(stdout);
     }
     
-    // 淇：移除换行符
-    size_t len = strlen(buffer);
-    if (len > 0 && buffer[len - 1] == '\n') {
-        buffer[len - 1] = '\0';
-    }
-    
-    // 淇：检查输入长度，防止缓冲区溢出
-    if (len >= MAX_INPUT_LENGTH - 1) {
-        // 淇：输入过长，清空缓冲区并提示
-        printf("Warning: Input too long (max %d characters). Command truncated.\n", MAX_INPUT_LENGTH - 1);
-        buffer[MAX_INPUT_LENGTH - 1] = '\0';
-    }
-    
-    // 淇：处理特殊命令（加分项：历史命令查看）
-    if (strcmp(buffer, "!!") == 0) {
-        // 淇：执行上一条命令
-        if (cli->history && cli->history->count > 0) {
-            char* last_cmd = cli->history->history[cli->history->count - 1];
-            if (last_cmd) {
-                free(buffer);
-                char* result = strdup(last_cmd);
-                if (!result) {
-                    // 淇：内存分配失败，返回原始buffer
-                    return buffer;
-                }
-                return result;
-            }
-        } else {
-            printf("Error: No previous command in history\n");
-            free(buffer);
+    while (1) {
+        unsigned char ch;
+        ssize_t read_bytes = read(STDIN_FILENO, &ch, 1);
+        if (read_bytes <= 0) {
+            // 读取失败或 EOF
+            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
             return NULL;
         }
+        
+        if (ch == '\n' || ch == '\r') {
+            // 回车结束输入
+            putchar('\n');
+            buffer[len] = '\0';
+            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+            
+            // 处理 "!!" 快捷历史
+            if (strcmp(buffer, "!!") == 0) {
+                if (cli->history && cli->history->count > 0) {
+                    char* last_cmd = cli->history->history[cli->history->count - 1];
+                    if (last_cmd) {
+                        char* result = strdup(last_cmd);
+                        return result;
+                    }
+                } else {
+                    printf("Error: No previous command in history\n");
+                    return NULL;
+                }
+            }
+            
+            char* result = strdup(buffer);
+            return result;
+        } else if (ch == 0x7f || ch == 0x08) { // 退格 (Backspace)
+            if (cursor_pos > 0) {
+                // 将光标后的字符前移
+                for (int i = cursor_pos - 1; i < len; i++) {
+                    buffer[i] = buffer[i + 1];
+                }
+                len--;
+                cursor_pos--;
+                buffer[len] = '\0';
+                redraw_line();
+            }
+            continue;
+        } else if (ch == 0x1b) { // 可能是方向键序列
+            unsigned char seq[2];
+            if (read(STDIN_FILENO, &seq[0], 1) <= 0 || read(STDIN_FILENO, &seq[1], 1) <= 0) {
+                continue;
+            }
+            if (seq[0] == '[') {
+                if (seq[1] == 'A') {
+                    // 上箭头：上一条历史
+                    char* hist = get_history_command(cli, -1);
+                    if (hist) {
+                        old_len = len;
+                        len = (int)snprintf(buffer, sizeof(buffer), "%s", hist);
+                        cursor_pos = len; // 光标移到末尾
+                        redraw_line();
+                    }
+                } else if (seq[1] == 'B') {
+                    // 下箭头：下一条历史
+                    char* hist = get_history_command(cli, 1);
+                    if (hist) {
+                        old_len = len;
+                        len = (int)snprintf(buffer, sizeof(buffer), "%s", hist);
+                        cursor_pos = len; // 光标移到末尾
+                        redraw_line();
+                    } else {
+                        // 如果没有下一条，清空输入
+                        if (len > 0) {
+                            old_len = len;
+                            len = 0;
+                            cursor_pos = 0;
+                            buffer[0] = '\0';
+                            printf("\r> ");
+                            for (int i = 0; i < old_len; i++) putchar(' ');
+                            printf("\r> ");
+                            fflush(stdout);
+                        }
+                    }
+                } else if (seq[1] == 'C') {
+                    // 右箭头：光标右移
+                    if (cursor_pos < len) {
+                        cursor_pos++;
+                        printf("\033[C"); // ANSI: 光标右移
+                        fflush(stdout);
+                    }
+                } else if (seq[1] == 'D') {
+                    // 左箭头：光标左移
+                    if (cursor_pos > 0) {
+                        cursor_pos--;
+                        printf("\033[D"); // ANSI: 光标左移
+                        fflush(stdout);
+                    }
+                }
+            }
+            continue;
+        } else if (ch == 4) { // Ctrl+D
+            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+            return NULL;
+        } else {
+            // 普通字符：在光标位置插入
+            if (len < MAX_INPUT_LENGTH - 1) {
+                // 如果光标不在末尾，需要移动后面的字符
+                if (cursor_pos < len) {
+                    for (int i = len; i > cursor_pos; i--) {
+                        buffer[i] = buffer[i - 1];
+                    }
+                }
+                buffer[cursor_pos] = (char)ch;
+                len++;
+                cursor_pos++;
+                buffer[len] = '\0';
+                // 重绘整行以确保正确显示
+                redraw_line();
+            } else {
+                // 达到长度上限，忽略超出部分
+                continue;
+            }
+        }
     }
-    
-    return buffer;
 }
 
 // 淇：解析命令（增强错误处理）
