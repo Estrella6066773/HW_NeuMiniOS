@@ -74,6 +74,7 @@ int execute_rename(FileSystem* fs, const char* old_filename, const char* new_fil
     }
 }
 
+// ruby: CLI -> 进程管理：列出所有已登记进程
 // 淇：执行 plist 命令
 int execute_plist(ProcessManager* pm) {
     (void)pm;  // 淇：不再需要pm参数，但保持接口兼容
@@ -84,6 +85,7 @@ int execute_plist(ProcessManager* pm) {
     return 0;
 }
 
+// ruby: CLI -> 进程管理：停止指定 NeuMiniOS PID
 // 淇：执行 stop 命令
 int execute_stop(ProcessManager* pm, int process_id) {
     (void)pm;  // 淇：不再需要pm参数，但保持接口兼容
@@ -96,6 +98,7 @@ int execute_stop(ProcessManager* pm, int process_id) {
     return stop_process(process_id);
 }
 
+// ruby: CLI -> 进程管理：解包文件后创建运行进程
 // 执行 run 命令
 int execute_run(FileSystem* fs, ProcessManager* pm, const char* filename) {
     (void)pm;  // 不再需要pm参数，但保持接口兼容

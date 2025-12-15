@@ -13,6 +13,7 @@ static Process* process_list = NULL;
 static int process_count = 0;
 static int next_pid = 1;
 
+// ruby: 全局链表维护 NeuMiniOS 进程表，process_count 控制容量，next_pid 分配自增 PID
 // 在链表中查找指定 PID 的进程，返回节点指针，可选返回前驱指针
 static Process* find_process(int pid, Process** out_prev) {
     Process* prev = NULL;
@@ -29,6 +30,7 @@ static Process* find_process(int pid, Process** out_prev) {
     return NULL;
 }
 
+// ruby: 引导阶段重置进程表，清空残留子进程信息
 // 初始化进程表
 void init_process_table(void) {
     // 启动时确保链表为空
@@ -92,6 +94,7 @@ void run_program(const char *path) {
     }
 }
 
+// ruby: run 命令核心逻辑，fork+execl 启动程序并注册到进程链表
 // 创建新进程（run命令）
 int create_process(const char *program_name, const char *program_path) {
     // 1. 检查容量
@@ -125,6 +128,7 @@ int create_process(const char *program_name, const char *program_path) {
     free(data);
 
     // 4. 使用fork和execl运行
+    // 创建子进程
     pid_t system_pid = fork();
     if (system_pid == 0) {
         // 子进程
@@ -166,7 +170,8 @@ int create_process(const char *program_name, const char *program_path) {
     }
 }
 
-// 淇：停止进程（stop命令）
+// ruby: stop 命令入口，向目标系统进程发送信号并更新链表
+// 停止进程（stop命令）
 int stop_process(int pid) {
     if (pid <= 0) {
         printf("Error: Invalid process ID: %d\n", pid);
@@ -210,7 +215,8 @@ int stop_process(int pid) {
     return -1;
 }
 
-// 淇：列出所有进程（plist命令）
+// ruby: plist 命令输出当前已登记的运行中进程
+// 列出所有进程（plist命令）
 void list_processes(void) {
     int running_count = 0;
     
@@ -236,6 +242,7 @@ void list_processes(void) {
     }
 }
 
+// ruby: 系统退出时清理所有子进程并释放链表节点
 // 清理进程表（退出时调用）
 void cleanup_process_table(void) {
     Process* curr = process_list;
