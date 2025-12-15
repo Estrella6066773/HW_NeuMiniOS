@@ -1,13 +1,10 @@
 #include "../include/commands.h"
-#include "../include/process_manager.h"
+#include "../include/process.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 #include <unistd.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <signal.h>
 
 // 执行 list 命令
 int execute_list(FileSystem* fs) {

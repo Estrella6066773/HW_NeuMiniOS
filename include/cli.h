@@ -25,12 +25,12 @@ typedef struct {
     int arg_count;      // 参数数量
 } ParsedCommand;
 
-// 淇：前向声明
+// 前向声明
 struct FileSystem;
 typedef struct FileSystem FileSystem;
 typedef void ProcessManager;
 
-// 淇：函数声明
+// 函数声明
 CLI* init_cli(void);
 void destroy_cli(CLI* cli);
 void cli_loop(CLI* cli, FileSystem* fs, ProcessManager* pm);

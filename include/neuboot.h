@@ -3,7 +3,7 @@
 
 #include "file_system.h"
 #include "cli.h"
-#include "process_manager.h"
+#include "process.h"
 
 // 引导加载器配置
 #define DEFAULT_FILES_DIR "./neuminios_files"

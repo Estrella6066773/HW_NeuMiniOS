@@ -1,4 +1,4 @@
-#include "../include/process_manager.h"
+#include "../include/process.h"
 
 #include <stdio.h>
 #include <stdlib.h>

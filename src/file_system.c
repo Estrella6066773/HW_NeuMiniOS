@@ -4,7 +4,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#define _POSIX_C_SOURCE 200809L
 
 // 初始化文件系统
 FileSystem* init_file_system(void) {
@@ -22,7 +21,7 @@ FileSystem* init_file_system(void) {
     root->path = strdup("/");
     root->data = NULL;
     root->size = 0;
-    root->is_directory = 1;
+    root->is_directory = true;
     root->children = NULL;
     root->next = NULL;
     root->parent = NULL;
@@ -51,6 +50,7 @@ static void free_file_node(FileNode* node) {
 }
 
 // 销毁文件系统
+// destroy file system to free the memory.
 void destroy_file_system(FileSystem* fs) {
     if (!fs) return;
     
@@ -60,6 +60,7 @@ void destroy_file_system(FileSystem* fs) {
 }
 
 // 添加文件到文件系统
+// add files into Neuminios when the system is starting.
 FileNode* add_file(FileSystem* fs, const char* filename, const char* path, void* data, size_t size) {
     if (!fs || !filename || !data) return NULL;
     
@@ -77,7 +78,7 @@ FileNode* add_file(FileSystem* fs, const char* filename, const char* path, void*
     }
     memcpy(new_file->data, data, size);
     new_file->size = size;
-    new_file->is_directory = 0;
+    new_file->is_directory = false;
     new_file->children = NULL;
     new_file->next = NULL;
     new_file->parent = fs->current_dir;
@@ -98,6 +99,8 @@ FileNode* add_file(FileSystem* fs, const char* filename, const char* path, void*
 }
 
 // 查找文件
+// search file
+//
 FileNode* find_file(FileSystem* fs, const char* filename) {
     if (!fs || !filename) return NULL;
     
@@ -113,6 +116,7 @@ FileNode* find_file(FileSystem* fs, const char* filename) {
 }
 
 // 删除文件
+// cmd: delete <filename>
 int delete_file(FileSystem* fs, const char* filename) {
     if (!fs || !filename) return -1;
     
@@ -145,6 +149,7 @@ int delete_file(FileSystem* fs, const char* filename) {
 }
 
 // 复制文件
+// copy <filename>
 FileNode* copy_file(FileSystem* fs, const char* src_filename, const char* dest_filename) {
     FileNode* src_file = find_file(fs, src_filename);
     if (!src_file) return NULL;
@@ -153,6 +158,7 @@ FileNode* copy_file(FileSystem* fs, const char* src_filename, const char* dest_f
 }
 
 // 重命名文件
+// rename <filename>
 int rename_file(FileSystem* fs, const char* old_filename, const char* new_filename) {
     FileNode* file = find_file(fs, old_filename);
     if (!file) return -1;
@@ -163,6 +169,7 @@ int rename_file(FileSystem* fs, const char* old_filename, const char* new_filena
 }
 
 // 列出当前目录的所有文件
+// list
 void list_files(FileSystem* fs) {
     if (!fs || !fs->current_dir) return;
     
@@ -234,7 +241,7 @@ FileNode* create_directory(FileSystem* fs, const char* dirname) {
     new_dir->path = new_path;
     new_dir->data = NULL;
     new_dir->size = 0;
-    new_dir->is_directory = 1;
+    new_dir->is_directory = true;
     new_dir->children = NULL;
     new_dir->next = NULL;
     new_dir->parent = fs->current_dir;

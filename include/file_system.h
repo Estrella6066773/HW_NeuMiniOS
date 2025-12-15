@@ -2,14 +2,15 @@
 #define FILE_SYSTEM_H
 
 #include <stddef.h>
+#include <stdbool.h>
 
 // 文件节点结构（使用链表）
 typedef struct FileNode {
     char* filename;           // 文件名
     char* path;               // 文件路径（用于目录支持）
-    void* data;               // 文件内容的内存指针
-    size_t size;              // 文件大小（字节）
-    int is_directory;         // 是否为目录（0=文件, 1=目录）
+    void* data;                // 文件内容的内存指针
+    size_t size;               // 文件大小（字节）
+    bool is_directory;         // 是否为目录（false=文件, true=目录）
     struct FileNode* children; // 子文件/目录（用于目录层次）
     struct FileNode* next;     // 同级文件/目录（链表指针）
     struct FileNode* parent;   // 父目录指针
