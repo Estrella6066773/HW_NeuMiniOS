@@ -197,65 +197,46 @@ int extract_file_to_host(FileSystem* fs, const char* filename, const char* host_
 
 ## ⚠️ 发现的问题
 
-### 1. 内存泄漏风险（中等优先级）
+### 1. 内存泄漏问题（已修复 ✅）
 
-**问题描述**:
-- `destroy_file_system()` 函数未实现递归释放所有文件节点
+**问题描述（旧版本）**:
+- 早期版本中，`destroy_file_system()` 函数未实现递归释放所有文件节点
 - 只释放了 `FileSystem` 结构体本身
 - 所有 `FileNode` 节点及其数据未被释放
 
-**代码位置**: `src/file_system.c:38-45`
+**当前代码位置**: `src/file_system.c:36-60`
 
-**当前实现**:
+**当前实现**（节选，自 2025 年代码）:
 ```c
-void destroy_file_system(FileSystem* fs) {
-    if (!fs) return;
-    
-    // TODO: 递归释放所有文件节点
-    // 这里需要实现递归释放逻辑
-    
-    free(fs);
-}
-```
-
-**影响**: 
-- 程序退出时可能泄漏内存
-- 虽然程序退出后系统会回收内存，但不符合良好的编程实践
-
-**建议解决方案**:
-```c
-// 递归释放文件节点
+// 递归释放文件节点及其子节点
 static void free_file_node(FileNode* node) {
     if (!node) return;
-    
-    // 递归释放子节点
-    FileNode* child = node->children;
-    while (child) {
-        FileNode* next = child->next;
-        free_file_node(child);
-        child = next;
-    }
-    
-    // 释放当前节点
+
+    // 先释放子节点，再处理兄弟节点，避免悬挂指针
+    free_file_node(node->children);
+    free_file_node(node->next);
+
     free(node->filename);
     free(node->path);
-    if (node->data) {
+    if (!node->is_directory && node->data) {
         free(node->data);
     }
     free(node);
 }
 
+// 销毁文件系统
 void destroy_file_system(FileSystem* fs) {
     if (!fs) return;
     
-    // 递归释放根目录及其所有子节点
-    if (fs->root) {
-        free_file_node(fs->root);
-    }
-    
+    free_file_node(fs->root);
     free(fs);
 }
 ```
+
+**当前结论**:
+- 文件系统退出时已经能够递归释放所有目录和文件节点
+- 早期报告中提到的“明显内存泄漏”问题已在当前版本中修复
+- 仍建议使用 Valgrind 等工具进行一次全程验证
 
 ### 2. `copy_file()` 函数实现正确（已确认）
 
@@ -330,9 +311,9 @@ FileNode* find_file(FileSystem* fs, const char* filename) {
 | `cd` 命令 | ✅ 完成 |
 | `mkdir` 命令 | ✅ 完成 |
 
-### 总体完成度: 95%
+### 总体完成度: 100%
 
-**扣分原因**: 内存释放功能未完全实现（-5%）
+**说明**: 当前版本已实现递归释放文件系统内所有节点，不再因销毁阶段的内存泄漏而扣分。
 
 **说明**: `copy_file()` 函数实现正确，`add_file()` 内部已正确处理内存分配和复制
 
@@ -489,18 +470,16 @@ FileNode* find_file(FileSystem* fs, const char* filename) {
 - ✅ 支持目录层次结构（加分项）
 
 ### 需要改进
-- ⚠️ 内存释放功能未完全实现（存在内存泄漏风险）
-- ⚠️ `copy_file()` 函数可能需要优化
-- ⚠️ 错误处理可以更详细
+- ⚠️ `find_file()` 目前只支持在当前目录中按文件名查找，如需跨目录/路径查找仍可扩展
+- ⚠️ 错误处理可以更详细（区分文件不存在、权限错误等）
 
 ### 建议
-- **优先修复内存泄漏问题**（重要）
-- 优化代码细节
-- 增强错误处理
+- 使用 Valgrind 等工具对当前递归释放实现做一次完整内存检测
+- 后续可考虑扩展路径查找接口和更丰富的文件属性
 
 ---
 
-**报告生成时间**: 2024年  
+**报告生成时间**: 2024年（2025 年按最新代码状态更新）  
 **检查人**: AI Assistant  
-**状态**: ✅ 基本要求完成，加分项完成，存在一个内存管理问题
+**状态**: ✅ 基本要求和加分项均已完成，内存管理问题已修复
 
