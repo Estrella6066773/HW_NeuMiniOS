@@ -26,8 +26,8 @@ void neuboot_start(void) {
     // 初始化进程表
     init_process_table();
 
-    // Est:wj
-    // 从lunix的目录加载文件
+    // Est:文件系统
+    // 从linux的目录加载文件到虚
     printf("Loading files from directory: %s\n", DEFAULT_FILES_DIR);
     int files_loaded = load_files_from_directory(fs, DEFAULT_FILES_DIR);
     printf("Loaded %d files into Disk Image\n\n", files_loaded);
@@ -59,6 +59,7 @@ void neuboot_start(void) {
     printf("Goodbye!\n");
 }
 
+// Est:
 // 从目录加载文件到磁盘镜像
 int load_files_from_directory(FileSystem* fs, const char* directory_path) {
     if (!fs || !directory_path) return 0;
