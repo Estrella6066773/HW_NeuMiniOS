@@ -25,8 +25,9 @@ void neuboot_start(void) {
     // ruby: 引导阶段初始化进程表，确保 CLI 运行前没有残留进程
     // 初始化进程表
     init_process_table();
-    
-    // 从目录加载文件
+
+    // Est:wj
+    // 从lunix的目录加载文件
     printf("Loading files from directory: %s\n", DEFAULT_FILES_DIR);
     int files_loaded = load_files_from_directory(fs, DEFAULT_FILES_DIR);
     printf("Loaded %d files into Disk Image\n\n", files_loaded);
@@ -117,7 +118,7 @@ int load_files_from_directory(FileSystem* fs, const char* directory_path) {
     return files_loaded;
 }
 
-// 显示启动信息（加分项）
+// 显示启动信息
 void display_boot_info(FileSystem* fs) {
     if (!fs) return;
     
@@ -129,27 +130,27 @@ void display_boot_info(FileSystem* fs) {
     list_files(fs);
 }
 
-// 计算目录大小（辅助函数）
-size_t calculate_directory_size(const char* directory_path) {
-    size_t total_size = 0;
-    DIR* dir = opendir(directory_path);
-    if (!dir) return 0;
-    
-    struct dirent* entry;
-    struct stat file_stat;
-    char file_path[512];
-    
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue;
-        }
-        
-        snprintf(file_path, sizeof(file_path), "%s/%s", directory_path, entry->d_name);
-        if (stat(file_path, &file_stat) == 0 && S_ISREG(file_stat.st_mode)) {
-            total_size += file_stat.st_size;
-        }
-    }
-    
-    closedir(dir);
-    return total_size;
-}
+// // 计算目录大小（辅助函数）
+// size_t calculate_directory_size(const char* directory_path) {
+//     size_t total_size = 0;
+//     DIR* dir = opendir(directory_path);
+//     if (!dir) return 0;
+//
+//     struct dirent* entry;
+//     struct stat file_stat;
+//     char file_path[512];
+//
+//     while ((entry = readdir(dir)) != NULL) {
+//         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+//             continue;
+//         }
+//
+//         snprintf(file_path, sizeof(file_path), "%s/%s", directory_path, entry->d_name);
+//         if (stat(file_path, &file_stat) == 0 && S_ISREG(file_stat.st_mode)) {
+//             total_size += file_stat.st_size;
+//         }
+//     }
+//
+//     closedir(dir);
+//     return total_size;
+// }

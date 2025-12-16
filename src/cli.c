@@ -1,6 +1,5 @@
 #include "../include/cli.h"
 #include "../include/commands.h"
-#include "../include/file_system.h"
 #include "../include/process.h"
 #include <stdio.h>
 #include <stdlib.h>
