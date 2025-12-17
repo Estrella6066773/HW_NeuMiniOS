@@ -72,10 +72,11 @@ void destroy_file_system(FileSystem* fs) {
  * @param filename 文件名，不能为NULL
  * @param path     文件路径，如果为NULL则使用默认根路径"/"
  * @param data     文件数据指针，不能为NULL（可以是普通数据指针或AutoSizedData指针）
+ * @param size     文件长度，方法仅在复制时使用，故直接给予
  *
  * @return 指向新创建的FileNode的指针，失败返回NULL
  */
-FileNode* add_file(FileSystem* fs, const char* filename, const char* path, void* data) {
+FileNode* add_file(FileSystem* fs, const char* filename, const char* path, void* data, size_t size) {
     if (!fs || !filename || !data) return NULL;
     
     FileNode* new_file = (FileNode*)malloc(sizeof(FileNode));
@@ -84,6 +85,7 @@ FileNode* add_file(FileSystem* fs, const char* filename, const char* path, void*
     new_file->filename = strdup(filename);
     new_file->path = path ? strdup(path) : strdup("/");
     new_file->data = malloc(size);
+    // 数据为空时，撤销行为，然后退出
     if (!new_file->data) {
         free(new_file->filename);
         free(new_file->path);
@@ -176,11 +178,13 @@ void list_files(FileSystem* fs) {
 // view <filename>
 int view_file(FileSystem* fs, const char* filename) {
     FileNode* file = find_file(fs, filename);
+    // 为空
     if (!file) {
         printf("Error: File '%s' not found\n", filename);
         return -1;
     }
-    
+
+    // 是目录
     if (file->is_directory) {
         printf("Error: '%s' is a directory\n", filename);
         return -1;
@@ -191,7 +195,7 @@ int view_file(FileSystem* fs, const char* filename) {
     return 0;
 }
 
-// 删除文件，文件不内含文件，只有目录的子类会储存文件
+// 删除文件，文件不内含文件，只有目录会内含文件
 // delete <filename>
 int delete_file(FileSystem* fs, const char* filename) {
     if (!fs || !filename) return -1;
@@ -285,7 +289,6 @@ int change_directory(FileSystem* fs, const char* dirname) {
 }
 
 // 打印文件信息
-
 void print_file_info(FileNode* file) {
     if (!file) return;
     printf("File: %s, Size: %zu bytes, Path: %s\n", 
