@@ -261,7 +261,7 @@ FileNode* create_directory(FileSystem* fs, const char* dirname) {
     return new_dir;
 }
 
-// 切换目录
+// 切换目录，只能切换到上下的一层
 // cd <directory>
 int change_directory(FileSystem* fs, const char* dirname) {
     if (!fs || !dirname) return -1;
@@ -275,7 +275,7 @@ int change_directory(FileSystem* fs, const char* dirname) {
         return -1;
     }
     
-    // 查找目录
+    // 查找子目录
     FileNode* current = fs->current_dir->children;
     while (current != NULL) {
         if (strcmp(current->filename, dirname) == 0 && current->is_directory) {
