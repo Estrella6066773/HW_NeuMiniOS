@@ -22,7 +22,7 @@ void neuboot_start(void) {
         return;
     }
     
-    // ruby: 引导阶段初始化进程表，确保 CLI 运行前没有残留进程
+    // ruby(init)：引导阶段初始化进程表，确保 CLI 运行前没有残留进程
     // 初始化进程表
     init_process_table();
 
@@ -48,7 +48,7 @@ void neuboot_start(void) {
     }
     
     // 淇：使用CLI主循环（集成命令执行系统）
-    ProcessManager* pm = NULL;  // 淇：保持接口兼容，但实际不再使用
+    Process* pm = NULL;  // 淇：保持接口兼容，但实际不再使用
     cli_loop(cli, fs, pm);
     
     // 清理资源

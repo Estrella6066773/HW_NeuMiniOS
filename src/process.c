@@ -13,8 +13,7 @@ static Process* process_list = NULL;
 static int process_count = 0;
 static int next_pid = 1;
 
-// ruby: 全局链表维护 NeuMiniOS 进程表，process_count 控制容量，next_pid 分配自增 PID
-// 在链表中查找指定 PID 的进程，返回节点指针，可选返回前驱指针
+// ruby(plist/run/stop)：全局链表维护 NeuMiniOS 进程表，process_count 控制容量，next_pid 分配自增 PID
 static Process* find_process(int pid, Process** out_prev) {
     Process* prev = NULL;
     Process* curr = process_list;
@@ -30,7 +29,6 @@ static Process* find_process(int pid, Process** out_prev) {
     return NULL;
 }
 
-// ruby: 引导阶段重置进程表，清空残留子进程信息
 // 初始化进程表
 void init_process_table(void) {
     // 启动时确保链表为空
@@ -94,7 +92,6 @@ void run_program(const char *path) {
     }
 }
 
-// ruby: run 命令核心逻辑，fork+execl 启动程序并注册到进程链表
 // 创建新进程（run命令）
 int create_process(const char *program_name, const char *program_path) {
     // 1. 检查容量
@@ -103,7 +100,6 @@ int create_process(const char *program_name, const char *program_path) {
         return -1;
     }
 
-    // 2. 读取二进制文件
     size_t size;
     unsigned char *data = read_file(program_path, &size);
     if (!data) {
@@ -127,7 +123,6 @@ int create_process(const char *program_name, const char *program_path) {
 
     free(data);
 
-    // 4. 使用fork和execl运行
     // 创建子进程
     pid_t system_pid = fork();
     if (system_pid == 0) {
@@ -170,8 +165,8 @@ int create_process(const char *program_name, const char *program_path) {
     }
 }
 
-// ruby: stop 命令入口，向目标系统进程发送信号并更新链表
-// 停止进程（stop命令）
+// - 链表：已知 prev 时，只需改一次指针（prev->next 或 process_list），不用搬动后续元素
+// - 数组：删除中间元素通常要把后面的元素整体前移，代码更复杂、也更容易出错
 int stop_process(int pid) {
     if (pid <= 0) {
         printf("Error: Invalid process ID: %d\n", pid);
@@ -179,11 +174,12 @@ int stop_process(int pid) {
     }
     
     Process* prev = NULL;
+    // ruby(stop-链表删除)：通过 find_process 一次遍历同时拿到目标节点和它的前驱节点
     Process* target = find_process(pid, &prev);
     if (target && target->status == 1) {
-        // 检查进程是否仍然存在
         if (kill(target->system_pid, 0) != 0) {
-            // 进程已经不存在，移除节点
+            // 进程已经不存在，只需要从链表中摘掉这个节点
+            // 对于头结点 prev 为 NULL，因此需要单独更新 process_list
             if (prev) prev->next = target->next; else process_list = target->next;
             printf("Warning: Process %d (system PID %d) is no longer running\n", 
                    pid, (int)target->system_pid);
@@ -198,7 +194,8 @@ int stop_process(int pid) {
             int status;
             waitpid(target->system_pid, &status, 0);
 
-            // 从链表移除并释放
+            // 从链表移除并释放：同样只需要一次指针更新 + free
+            // 如果这里是数组实现，则需要把后续元素整体前移，代价更高
             if (prev) prev->next = target->next; else process_list = target->next;
             printf("Process %d (%s) stopped successfully\n", pid, target->name);
             free(target);
@@ -215,7 +212,6 @@ int stop_process(int pid) {
     return -1;
 }
 
-// ruby: plist 命令输出当前已登记的运行中进程
 // 列出所有进程（plist命令）
 void list_processes(void) {
     int running_count = 0;
@@ -234,6 +230,7 @@ void list_processes(void) {
             running_count++;
         }
     }
+    // 使用 status == 1 过滤出“运行中”的进程，便于以后扩展其他状态。
     
     if (running_count == 0) {
         printf("(no running processes)\n");
@@ -242,8 +239,7 @@ void list_processes(void) {
     }
 }
 
-// ruby: 系统退出时清理所有子进程并释放链表节点
-// 清理进程表（退出时调用）
+// ruby(exit)：系统退出时清理所有子进程并释放链表节点
 void cleanup_process_table(void) {
     Process* curr = process_list;
     while (curr) {

@@ -16,11 +16,10 @@ int execute_mkdir(FileSystem* fs, const char* dirname);   // mkdir <directory>
 int execute_cd(FileSystem* fs, const char* dirname);      // cd <directory>
 
 // 进程管理 | Process
-int execute_plist(ProcessManager* pm);                     // 进程管理里接口，命令能显示进程列表
-int execute_stop(ProcessManager* pm, int process_id);      // 命令能停止进程
-int execute_run(FileSystem* fs, ProcessManager* pm, const char* filename); // 命令能创建进程
-
+int execute_plist(Process* pm);
+int execute_stop(Process* pm, int process_id);
+int execute_run(FileSystem* fs, Process* pm, const char* filename);
 // 主命令分发函数
-int execute_command(ParsedCommand* cmd, FileSystem* fs, ProcessManager* pm);
+int execute_command(ParsedCommand* cmd, FileSystem* fs, Process* pm);
 
 #endif // COMMANDS_H

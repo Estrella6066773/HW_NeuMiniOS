@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 // 主命令分发函数（控制台指令入口）
-int execute_command(ParsedCommand* cmd, FileSystem* fs, ProcessManager* pm) {
+int execute_command(ParsedCommand* cmd, FileSystem* fs, Process* pm) {
     if (!cmd || !cmd->command) return -1;
     
     if (strcmp(cmd->command, "list") == 0) {
@@ -15,9 +15,11 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, ProcessManager* pm) {
     }
     // 进程管理相关指令
     else if (strcmp(cmd->command, "plist") == 0) {
+        // ruby(plist)：当用户输入 `plist` 时，从这里跳转到进程列表功能
         return execute_plist(pm);
     }
     else if (strcmp(cmd->command, "stop") == 0) {
+        // ruby(stop)：当用户输入 `stop <pid>` 时，从这里进入进程终止逻辑
         if (cmd->arg_count < 2) {
             printf("Usage: stop <process_id>\n");
             printf("Example: stop 1\n");
@@ -37,6 +39,7 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, ProcessManager* pm) {
         return execute_stop(pm, process_id);
     }
     else if (strcmp(cmd->command, "run") == 0) {
+        // ruby(run)：当用户输入 `run <filename>` 时，从这里创建并运行新进程
         if (cmd->arg_count < 2) {
             printf("Usage: run <filename>\n");
             return -1;
@@ -140,9 +143,9 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, ProcessManager* pm) {
 // 进程管理相关执行函数
 // =========================
 
-// ruby: CLI -> 进程管理：列出所有已登记进程
+// ruby(plist)：CLI -> 进程管理：列出当前进程表中所有"运行中"进程
 // 淇：执行 plist 命令
-int execute_plist(ProcessManager* pm) {
+int execute_plist(Process* pm) {
     (void)pm;  // 淇：不再需要pm参数，但保持接口兼容
     
     // 淇：确保进程表已初始化
@@ -151,9 +154,9 @@ int execute_plist(ProcessManager* pm) {
     return 0;
 }
 
-// ruby: CLI -> 进程管理：停止指定 NeuMiniOS PID
+// ruby(stop)：CLI -> 进程管理：停止指定 NeuMiniOS PID
 // 淇：执行 stop 命令
-int execute_stop(ProcessManager* pm, int process_id) {
+int execute_stop(Process* pm, int process_id) {
     (void)pm;  // 淇：不再需要pm参数，但保持接口兼容
     
     if (process_id <= 0) {
@@ -164,9 +167,9 @@ int execute_stop(ProcessManager* pm, int process_id) {
     return stop_process(process_id);
 }
 
-// ruby: CLI -> 进程管理：解包文件后创建运行进程
+// ruby(run)：CLI -> 进程管理：先从磁盘镜像解包文件，再交给进程模块创建并运行进程
 // 执行 run 命令
-int execute_run(FileSystem* fs, ProcessManager* pm, const char* filename) {
+int execute_run(FileSystem* fs, Process* pm, const char* filename) {
     (void)pm;  // 不再需要pm参数，但保持接口兼容
     
     if (!fs || !filename) {

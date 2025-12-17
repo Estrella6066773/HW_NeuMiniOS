@@ -28,12 +28,13 @@ typedef struct {
 // 前向声明
 struct FileSystem;
 typedef struct FileSystem FileSystem;
-typedef void ProcessManager;
+struct Process;
+typedef struct Process Process;
 
 // 函数声明
 CLI* init_cli(void);
 void destroy_cli(CLI* cli);
-void cli_loop(CLI* cli, FileSystem* fs, ProcessManager* pm);
+void cli_loop(CLI* cli, FileSystem* fs, Process* pm);
 char* read_input(CLI* cli);
 ParsedCommand* parse_command(const char* input);
 void free_parsed_command(ParsedCommand* cmd);

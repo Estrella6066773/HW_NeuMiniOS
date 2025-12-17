@@ -51,7 +51,7 @@ void destroy_cli(CLI* cli) {
 }
 
 // 淇：CLI 主循环（集成命令执行系统）
-void cli_loop(CLI* cli, FileSystem* fs, ProcessManager* pm) {
+void cli_loop(CLI* cli, FileSystem* fs, Process* pm) {
     if (!cli) return;
     
     char* input;
