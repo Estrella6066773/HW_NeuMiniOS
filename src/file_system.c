@@ -23,6 +23,8 @@ FileSystem* init_file_system(void) {
     root->data = NULL;
     root->size = 0;
     root->is_directory = true;
+    // 这里每次都只连接一个节点（链表）
+    // 所以同级和子集都存在顺序（横向，纵向）
     root->children = NULL;
     root->next = NULL;
     root->parent = NULL;
@@ -60,9 +62,20 @@ void destroy_file_system(FileSystem* fs) {
     free(fs);
 }
 
-// 添加文件到文件系统
-// add files into Neuminios when the system is starting.
-FileNode* add_file(FileSystem* fs, const char* filename, const char* path, void* data, size_t size) {
+/**
+ * 向文件系统当前目录添加一个文件
+ *
+ * 该函数创建一个新的文件节点，分配必要的内存，并将文件添加到当前目录的子节点链表中。
+ * 如果提供的路径为NULL，则使用根路径"/"作为默认路径。
+ * 
+ * @param fs      指向文件系统的指针，不能为NULL
+ * @param filename 文件名，不能为NULL
+ * @param path     文件路径，如果为NULL则使用默认根路径"/"
+ * @param data     文件数据指针，不能为NULL（可以是普通数据指针或AutoSizedData指针）
+ *
+ * @return 指向新创建的FileNode的指针，失败返回NULL
+ */
+FileNode* add_file(FileSystem* fs, const char* filename, const char* path, void* data) {
     if (!fs || !filename || !data) return NULL;
     
     FileNode* new_file = (FileNode*)malloc(sizeof(FileNode));
@@ -101,11 +114,10 @@ FileNode* add_file(FileSystem* fs, const char* filename, const char* path, void*
 
 // 查找文件
 // search file
-//
 FileNode* find_file(FileSystem* fs, const char* filename) {
     if (!fs || !filename) return NULL;
-    
-    FileNode* current = fs->current_dir->children;
+
+    FileNode* current = fs->current_dir->children; // 被检查的文件，在当前目录current_dir下查找
     while (current != NULL) {
         if (strcmp(current->filename, filename) == 0 && !current->is_directory) {
             return current;
@@ -133,7 +145,7 @@ int rename_file(FileSystem* fs, const char* old_filename, const char* new_filena
     if (!file) return -1;
     
     free(file->filename);
-    file->filename = strdup(new_filename);
+    file->filename = strdup(new_filename); //由于是新分配，所以要释放原有的，防止内存泄漏
     return 0;
 }
 
@@ -161,7 +173,7 @@ void list_files(FileSystem* fs) {
 }
 
 // 查看文件内容
-// view <filenmame>
+// view <filename>
 int view_file(FileSystem* fs, const char* filename) {
     FileNode* file = find_file(fs, filename);
     if (!file) {
@@ -179,13 +191,13 @@ int view_file(FileSystem* fs, const char* filename) {
     return 0;
 }
 
-// 删除文件
-// cmd: delete <filename>
+// 删除文件，文件不内含文件，只有目录的子类会储存文件
+// delete <filename>
 int delete_file(FileSystem* fs, const char* filename) {
     if (!fs || !filename) return -1;
 
     FileNode* prev = NULL;
-    FileNode* current = fs->current_dir->children;
+    FileNode* current = fs->current_dir->children; //在当前目录下对文件进行查找
 
     while (current != NULL) {
         if (strcmp(current->filename, filename) == 0 && !current->is_directory) {

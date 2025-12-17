@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-// 文件节点结构（使用链表）
+// 文件节点结构（含链表）
 typedef struct FileNode {
     char* filename;           // 文件名
     char* path;               // 文件路径（用于目录支持）

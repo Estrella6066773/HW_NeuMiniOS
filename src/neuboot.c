@@ -27,7 +27,7 @@ void neuboot_start(void) {
     init_process_table();
 
     // Est:文件系统
-    // 从linux的目录加载文件到虚
+    // 从linux的目录加载文件到虚拟的磁盘（磁盘镜像）
     printf("Loading files from directory: %s\n", DEFAULT_FILES_DIR);
     int files_loaded = load_files_from_directory(fs, DEFAULT_FILES_DIR);
     printf("Loaded %d files into Disk Image\n\n", files_loaded);
@@ -77,6 +77,7 @@ int load_files_from_directory(FileSystem* fs, const char* directory_path) {
     
     while ((entry = readdir(dir)) != NULL) {
         // 跳过 . 和 ..
+        // 保证只往下遍历，而不会返回上级
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
             continue;
         }
