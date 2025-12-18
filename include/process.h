@@ -24,13 +24,12 @@ static int next_pid = 1;                     // NeuMiniOS 下一个可用 PID
 typedef struct Process {
     int pid;                     // NeuMiniOS 进程 ID（唯一）
     pid_t system_pid;            // Linux 系统进程 ID
-    int status;                  // 进程状态（0=空闲, 1=运行中）
-    char name[MAX_PROCESS_NAME]; // 进程名称
+    int status;                  
+    char name[MAX_PROCESS_NAME]; 
     struct Process* next;        // 指向下一个进程节点
 } Process;
 
-// ruby: 进程管理对外 API，供引导、CLI 命令调用
-// 进程管理函数声明
+// ruby: 进程管理对外 API，进程管理函数声明
 void init_process_table(void);
 int create_process(const char* program_name, const char* program_path);
 int stop_process(int pid);

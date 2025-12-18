@@ -15,11 +15,11 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, Process* pm) {
     }
     // 进程管理相关指令
     else if (strcmp(cmd->command, "plist") == 0) {
-        // ruby(plist)：当用户输入 `plist` 时，从这里跳转到进程列表功能
+        // ruby(plist)
         return execute_plist(pm);
     }
     else if (strcmp(cmd->command, "stop") == 0) {
-        // ruby(stop)：当用户输入 `stop <pid>` 时，从这里进入进程终止逻辑
+        // ruby(stop)
         if (cmd->arg_count < 2) {
             printf("Usage: stop <process_id>\n");
             printf("Example: stop 1\n");
@@ -39,7 +39,7 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, Process* pm) {
         return execute_stop(pm, process_id);
     }
     else if (strcmp(cmd->command, "run") == 0) {
-        // ruby(run)：当用户输入 `run <filename>` 时，从这里创建并运行新进程
+        // ruby(run)
         if (cmd->arg_count < 2) {
             printf("Usage: run <filename>\n");
             return -1;
@@ -139,11 +139,10 @@ int execute_command(ParsedCommand* cmd, FileSystem* fs, Process* pm) {
     }
 }
 
-// =========================
-// 进程管理相关执行函数
-// =========================
 
-// ruby(plist)：CLI -> 进程管理：列出当前进程表中所有"运行中"进程
+// 进程管理相关执行函数
+
+
 // 淇：执行 plist 命令
 int execute_plist(Process* pm) {
     (void)pm;  // 淇：不再需要pm参数，但保持接口兼容
@@ -154,7 +153,6 @@ int execute_plist(Process* pm) {
     return 0;
 }
 
-// ruby(stop)：CLI -> 进程管理：停止指定 NeuMiniOS PID
 // 淇：执行 stop 命令
 int execute_stop(Process* pm, int process_id) {
     (void)pm;  // 淇：不再需要pm参数，但保持接口兼容
