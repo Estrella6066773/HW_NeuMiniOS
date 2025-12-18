@@ -189,70 +189,7 @@ int extract_file_to_host(FileSystem* fs, const char* filename, const char* host_
 
 ## ⚠️ 发现的问题
 
-### 1. 内存泄漏问题（已修复 ✅）
-
-**问题描述（旧版本）**:
-- 早期版本中，`destroy_file_system()` 函数未实现递归释放所有文件节点
-- 只释放了 `FileSystem` 结构体本身
-- 所有 `FileNode` 节点及其数据未被释放
-
-**当前代码位置**: `src/file_system.c:36-60`
-
-**当前实现**（节选，自 2025 年代码）:
-```c
-// 递归释放文件节点及其子节点
-static void free_file_node(FileNode* node) {
-    if (!node) return;
-
-    // 先释放子节点，再处理兄弟节点，避免悬挂指针
-    free_file_node(node->children);
-    free_file_node(node->next);
-
-    free(node->filename);
-    free(node->path);
-    if (!node->is_directory && node->data) {
-        free(node->data);
-    }
-    free(node);
-}
-
-// 销毁文件系统
-void destroy_file_system(FileSystem* fs) {
-    if (!fs) return;
-    
-    free_file_node(fs->root);
-    free(fs);
-}
-```
-
-**当前结论**:
-- 文件系统退出时已经能够递归释放所有目录和文件节点
-- 早期报告中提到的“明显内存泄漏”问题已在当前版本中修复
-- 仍建议使用 Valgrind 等工具进行一次全程验证
-
-### 2. `copy_file()` 函数实现正确（已确认）
-
-**状态**: ✅ **实现正确**
-
-**代码位置**: `src/file_system.c:133-138`
-
-**当前实现**:
-```c
-FileNode* copy_file(FileSystem* fs, const char* src_filename, const char* dest_filename) {
-    FileNode* src_file = find_file(fs, src_filename);
-    if (!src_file) return NULL;
-    
-    return add_file(fs, dest_filename, fs->current_dir->path, src_file->data, src_file->size);
-}
-```
-
-**说明**: 
-- `copy_file()` 调用 `add_file()` 时传入源文件的数据指针
-- `add_file()` 函数内部（第56-63行）会分配新内存（`malloc(size)`）并复制数据（`memcpy()`）
-- 因此两个文件的数据是独立的，不存在内存共享问题
-- 实现正确，无需修改
-
-### 3. `find_file()` 只搜索当前目录（设计考虑）
+### 1. `find_file()` 只搜索当前目录（设计考虑）
 
 **问题描述**:
 - `find_file()` 只在当前目录的子节点中搜索
@@ -279,6 +216,28 @@ FileNode* find_file(FileSystem* fs, const char* filename) {
 ```
 
 **说明**: 这可能是合理的设计选择（类似 Unix 文件系统），但可以考虑添加路径支持（如 `find_file_by_path()`）。
+
+### 2. 文件创建和编辑功能未完善
+
+**问题描述**:
+- 当前文件系统缺少新建文件的功能
+- 无法在 NeuMiniOS 内部创建新文件
+- 缺少文件编辑功能，无法修改已存在的文件内容
+- 文件只能通过 `load_files_from_directory()` 从外部目录加载
+
+**影响**: 限制了文件系统的实用性，用户无法在运行时动态创建或修改文件
+
+### 5. 目录切换功能限制
+
+**问题描述**:
+- `change_directory()` 函数只支持单层目录切换
+- 不支持多级路径切换（如 `cd dir1/dir2/dir3`）
+- 只能通过多次 `cd` 命令逐层进入目录
+- 不支持绝对路径切换
+
+**代码位置**: `src/file_system.c:242-265`
+
+**影响**: 降低了目录操作的效率，用户体验不够友好
 
 ---
 
@@ -338,11 +297,26 @@ FileNode* find_file(FileSystem* fs, const char* filename) {
 
 ### 优先级3: 功能增强
 
-1. **改进错误处理**
+1. **实现文件创建功能**
+   - 添加 `create_file()` 函数
+   - 支持在 NeuMiniOS 内部动态创建新文件
+   - 允许用户指定文件初始内容
+
+2. **实现文件编辑功能**
+   - 添加 `edit_file()` 或 `write_file()` 函数
+   - 支持修改已存在文件的内容
+   - 处理文件大小变化时的内存重新分配
+
+3. **增强目录切换功能**
+   - 支持多级路径切换（如 `cd dir1/dir2/dir3`）
+   - 支持绝对路径切换
+   - 实现路径解析和验证逻辑
+
+4. **改进错误处理**
    - 添加更详细的错误信息
    - 区分不同类型的错误（文件不存在、权限错误等）
 
-2. **添加文件属性**
+5. **添加文件属性**
    - 支持文件创建时间、修改时间
    - 支持文件权限位
    - 支持文件类型检测
@@ -464,6 +438,9 @@ FileNode* find_file(FileSystem* fs, const char* filename) {
 ### 需要改进
 - ⚠️ `find_file()` 目前只支持在当前目录中按文件名查找，如需跨目录/路径查找仍可扩展
 - ⚠️ 错误处理可以更详细（区分文件不存在、权限错误等）
+- ⚠️ 文件创建功能未实现，无法在系统运行时动态创建新文件
+- ⚠️ 文件编辑功能未实现，无法修改已存在文件的内容
+- ⚠️ 目录切换只支持单层切换，不支持多级路径和绝对路径
 
 ### 建议
 - 使用 Valgrind 等工具对当前递归释放实现做一次完整内存检测
