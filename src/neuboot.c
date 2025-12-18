@@ -31,14 +31,14 @@ void neuboot_start(void) {
     printf("Loading files from directory: %s\n", DEFAULT_FILES_DIR);
     int files_loaded = load_files_from_directory(fs, DEFAULT_FILES_DIR);
     printf("Loaded %d files into Disk Image\n\n", files_loaded);
-    
+
     // 显示启动信息（加分项）
     display_boot_info(fs);
-    
+
     // 启动 CLI
     printf("\nNeuMiniOS ready. Starting CLI...\n");
     printf("Type 'exit' to quit\n\n");
-    
+
     CLI* cli = init_cli();
     if (!cli) {
         printf("Error: Failed to initialize CLI\n");
