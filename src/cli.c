@@ -113,6 +113,11 @@ static void redraw_line(const char* buffer, int len, int cursor_pos, int* last_p
 char* read_input(CLI* cli) {
     if (!cli) return NULL;
     
+    // 淇：重置历史索引，准备开始新的输入（设置为count表示未开始浏览历史）
+    if (cli->history) {
+        cli->history->index = cli->history->count;
+    }
+    
     // 显示提示符（仅用于用户输入行）
     printf("> ");
     fflush(stdout);
@@ -391,7 +396,10 @@ char* get_history_command(CLI* cli, int direction) {
     
     if (direction < 0) {
         // 淇：上一条
-        if (cli->history->index > 0) {
+        // 如果index >= count（未开始浏览），则设置为最后一个命令的索引
+        if (cli->history->index >= cli->history->count) {
+            cli->history->index = cli->history->count - 1;
+        } else if (cli->history->index > 0) {
             cli->history->index--;
         }
     } else if (direction > 0) {
